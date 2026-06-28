@@ -232,6 +232,12 @@
     font-size: 14px;
   }
   .pred-name { font-weight: 600; }
+  .pred-empty {
+    padding: 14px 20px;
+    font-family: 'Spline Sans Mono', monospace;
+    font-size: 13px;
+    color: var(--mute);
+  }
   .pill {
     font-family: 'Spline Sans Mono', monospace;
     font-size: 12px;
@@ -407,7 +413,7 @@ function buildModel() {
   const players = {};
   DATA.preds.forEach(p => {
     const name = p.player;
-    if (!name) return;
+    if (!name || name.trim().startsWith("##")) return;
     if (!players[name]) players[name] = { name, pts: 0, p1: 0, p2: 0, calls: 0 };
     const r = scorePrediction(p, matchById[p.match_id]);
     players[name].calls++;
@@ -474,7 +480,11 @@ function renderMatches(model) {
       const aWin = played && m.winner && m.winner.toLowerCase() === (m.team_a || "").toLowerCase();
       const bWin = played && m.winner && m.winner.toLowerCase() === (m.team_b || "").toLowerCase();
 
-      const mPreds = DATA.preds.filter(p => p.match_id === m.id);
+      // only show players who actually entered a pick (winner or score),
+      // not the pre-seeded blank rows
+      const mPreds = DATA.preds.filter(p =>
+        p.match_id === m.id &&
+        ((p.winner && p.winner.trim() !== "") || (p.score && p.score.trim() !== "")));
 
       h += `<div class="match" data-id="${esc(m.id)}">
         <div class="match-top" onclick="toggleMatch('${esc(m.id)}')">
@@ -487,8 +497,9 @@ function renderMatches(model) {
           <div class="team right ${bWin ? "win" : (played ? "lose" : "")}">${esc(m.team_b || "TBD")}</div>
         </div>`;
 
+      // every match gets an expandable panel
+      h += `<div class="preds">`;
       if (mPreds.length) {
-        h += `<div class="preds">`;
         mPreds.forEach(p => {
           const r = scorePrediction(p, m);
           const winClass = r.played ? (r.p1 ? "hit" : "miss") : "";
@@ -499,9 +510,11 @@ function renderMatches(model) {
             <div class="pill ${scoreClass}">${esc(p.score || "—")}</div>
           </div>`;
         });
-        h += `</div>
-        <div class="caret">tap to ${"collapse / expand"}</div>`;
+      } else {
+        h += `<div class="pred-empty">No picks in yet for this one.</div>`;
       }
+      h += `</div>
+        <div class="caret">tap to collapse / expand</div>`;
       h += `</div>`;
     });
   });
@@ -562,7 +575,7 @@ async function fetchCSV(url) {
 
 async function load() {
   const status = document.getElementById("status");
-  if (MATCHES_CSV.includes("PASTE_") || PREDICTIONS_CSV.includes("PASTE_")) {
+  if (MATCHES_CSV.includes("PASTE_MATCHES") || PREDICTIONS_CSV.includes("PASTE_PREDICTIONS")) {
     status.className = "status err";
     status.innerHTML = "⚙️ Not configured yet — paste your two CSV links into the CONFIG block at the top of this file, then refresh.";
     renderRules();
